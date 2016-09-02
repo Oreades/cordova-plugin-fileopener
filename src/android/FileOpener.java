@@ -85,7 +85,7 @@ public class FileOpener extends CordovaPlugin {
             if (extension != null) {
                 String fileURL = args.getString(0);
                 if (fileURL.startsWith("file://")) {
-
+                    fileURL = fileURL.substring(7);
                     // Local file uri (case of an already downloaded file)
                     Log.d(FILE_OPENER, "Opening file from local URI as it begins with file://");
                     String filename = null;
