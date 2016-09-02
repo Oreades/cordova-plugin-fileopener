@@ -1,32 +1,33 @@
 package fr.smile.cordova.fileopener;
 
-import java.io.File;
-import java.io.UnsupportedEncodingException;
-import java.lang.String;
-import java.net.URLDecoder;
-import java.util.HashMap;
-
 import android.annotation.TargetApi;
-import org.apache.cordova.CordovaPlugin;
-import org.apache.cordova.CallbackContext;
+import android.app.DownloadManager;
+import android.content.ActivityNotFoundException;
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
+import android.content.pm.PackageManager;
+import android.database.Cursor;
+import android.net.Uri;
+import android.os.Environment;
+import android.util.Log;
 
+import org.apache.cordova.CallbackContext;
+import org.apache.cordova.CordovaPlugin;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
-import android.content.Context;
-import android.content.Intent;
-import android.net.Uri;
-
-import android.os.Environment;
-import android.content.pm.PackageManager;
-import android.app.DownloadManager;
-import android.content.BroadcastReceiver;
-import android.content.IntentFilter;
-import android.database.Cursor;
-
-import android.content.ActivityNotFoundException;
-import android.util.Log;
+import java.io.BufferedOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.UnsupportedEncodingException;
+import java.net.URLDecoder;
+import java.util.HashMap;
 
 @TargetApi(9)
 public class FileOpener extends CordovaPlugin {
@@ -84,11 +85,24 @@ public class FileOpener extends CordovaPlugin {
             if (extension != null) {
                 String fileURL = args.getString(0);
                 if (fileURL.startsWith("file://")) {
+
                     // Local file uri (case of an already downloaded file)
                     Log.d(FILE_OPENER, "Opening file from local URI as it begins with file://");
-                    File file = new File(fileURL.replaceFirst("^file:\\/\\/", ""));
-                    Uri uri = Uri.fromFile(file);
-                    Log.d(FILE_OPENER, "Local path: " + uri);
+                    String filename = null;
+                    try {
+                        filename = URLDecoder.decode(fileURL.substring(fileURL.lastIndexOf("/") + 1), "UTF-8");
+                    } catch (UnsupportedEncodingException e) {
+                        throw new RuntimeException(e);
+                    }
+
+                    Log.d(FILE_OPENER, "Local fileURL : " + fileURL);
+                    File fileIn = new File(fileURL);
+                    File fileOut = new File(context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), filename);
+
+                    copyFile(fileIn, fileOut);
+
+                    Uri uri = Uri.fromFile(fileOut);
+                    Log.d(FILE_OPENER, "Local path : " + uri);
                     this.openFile(uri, extension, context, callbackContext);
                 } else {
                     try {
@@ -101,6 +115,32 @@ public class FileOpener extends CordovaPlugin {
             return true;
         } else {
             return false;
+        }
+    }
+
+    private void copyFile(File fileIn, File fileOut)
+    {
+        InputStream in = null;
+        OutputStream out = null;
+        try
+        {
+            in = new FileInputStream(fileIn);
+            out = new BufferedOutputStream(new FileOutputStream(fileOut));
+
+            byte[] buffer = new byte[1024];
+            int read;
+            while ((read = in.read(buffer)) != -1)
+            {
+                out.write(buffer, 0, read);
+            }
+
+            in.close();
+
+            out.flush();
+            out.close();
+        } catch (Exception e)
+        {
+            Log.e(FILE_OPENER, e.getMessage());
         }
     }
 
@@ -148,8 +188,11 @@ public class FileOpener extends CordovaPlugin {
     private void openFile(Uri localUri, String extension, Context context, CallbackContext callbackContext) throws JSONException {
         Intent intent = new Intent(Intent.ACTION_VIEW);
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
         intent.setDataAndType(localUri, getMimeType(extension));
+
         JSONObject obj = new JSONObject();
+        Log.d(FILE_OPENER, "Open Uri : " + localUri);
 
         try {
             context.startActivity(intent);
