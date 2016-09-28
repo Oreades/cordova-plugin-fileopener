@@ -23,6 +23,7 @@ import java.io.BufferedOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.UnsupportedEncodingException;
@@ -86,6 +87,8 @@ public class FileOpener extends CordovaPlugin {
                 String fileURL = args.getString(0);
                 if (fileURL.startsWith("file://")) {
                     fileURL = fileURL.substring(7);
+
+
                     // Local file uri (case of an already downloaded file)
                     Log.d(FILE_OPENER, "Opening file from local URI as it begins with file://");
                     String filename = null;
@@ -99,7 +102,7 @@ public class FileOpener extends CordovaPlugin {
                     File fileIn = new File(fileURL);
                     File fileOut = new File(context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), filename);
 
-                    copyFile(fileIn, fileOut);
+                    copyFile(fileIn, fileOut, context);
 
                     Uri uri = Uri.fromFile(fileOut);
                     Log.d(FILE_OPENER, "Local path : " + uri);
@@ -118,13 +121,24 @@ public class FileOpener extends CordovaPlugin {
         }
     }
 
-    private void copyFile(File fileIn, File fileOut)
+    private void copyFile(File fileIn, File fileOut, Context context)
     {
         InputStream in = null;
         OutputStream out = null;
         try
         {
-            in = new FileInputStream(fileIn);
+            if(fileIn.getAbsolutePath().contains("android_asset")) {
+                String filename = fileIn.getAbsolutePath().replace("/android_asset/", "");
+                try {
+                    in = context.getAssets().open(filename);
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+
+            } else {
+                in = new FileInputStream(fileIn);
+            }
+
             out = new BufferedOutputStream(new FileOutputStream(fileOut));
 
             byte[] buffer = new byte[1024];
